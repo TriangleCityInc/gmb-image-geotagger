@@ -5,7 +5,7 @@ Private, client-side web app for preparing business photos for Google Business P
 - Strips existing metadata (PNG → JPEG conversion drops it).
 - Embeds realistic GPS + timestamp EXIF, jittered per photo around a pin you set.
 - Renames files organically using niche keywords.
-- Packages everything into a ZIP with a `manifest.csv`.
+- Packages everything into a ZIP.
 - Runs entirely in the browser. No backend. No npm. No build step.
 
 ## Local preview
@@ -55,11 +55,11 @@ The real `photoprep-keywords.php` file (with the key) must **never** be committe
    - **Cluster at base (%)** — what fraction of photos stay tight around the pin (shop/team/equipment shots, within 1km). The remainder spread across the full service area.
    (Timestamp spread is fixed at 100 days; JPEG quality is fixed at 0.92.)
 5. **Preview** — see the proposed filenames and jittered coordinates plotted on the map.
-6. **Process & Download** — generates `photo-prep-export.zip` with all processed JPEGs and a `manifest.csv` (filename, latitude, longitude, capture_datetime, low_res).
+6. **Process & Download** — generates `photo-prep-export.zip` containing all processed JPEGs ready to upload.
 
 ## Per-photo pipeline
 
-1. Decode to canvas, downscale longest side to 2048px max (no upscaling). Flag images with smaller dimension < 720px as `low_res` in the manifest.
+1. Decode to canvas, downscale longest side to 2048px max (no upscaling). Small images (<720px on the shorter side) are still processed; they appear in red in the Preview list so you can spot them before exporting.
 2. Encode JPEG at chosen quality; auto-drop quality until ≤ 5 MB.
 3. Build fresh EXIF (GPS lat/lng jittered, `DateTimeOriginal`/`Digitized`, plausible phone Make/Model).
 4. Embed EXIF with piexifjs, package in JSZip.

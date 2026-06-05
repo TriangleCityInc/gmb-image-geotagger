@@ -369,7 +369,6 @@ async function onProcess() {
       : planBatch(settings);
 
     const zip = new JSZip();
-    const manifestRows = [["filename","latitude","longitude","capture_datetime","low_res"]];
 
     for (let i = 0; i < state.files.length; i++) {
       const item = state.files[i];
@@ -379,23 +378,10 @@ async function onProcess() {
         const { blob, lowRes } = await processOne(item.file, p);
         p.low_res = p.low_res || lowRes;
         zip.file(p.filename, blob);
-        manifestRows.push([
-          p.filename,
-          p.lat.toFixed(6),
-          p.lng.toFixed(6),
-          p.capture_datetime,
-          p.low_res ? "true" : "false"
-        ]);
       } catch (err) {
         console.warn(`Skipping ${item.file.name}:`, err);
       }
     }
-
-    // Manifest
-    const csv = manifestRows
-      .map(r => r.map(csvEscape).join(","))
-      .join("\r\n");
-    zip.file("manifest.csv", csv);
 
     prog.textContent = "Zipping...";
     const blob = await zip.generateAsync({ type: "blob" });
@@ -408,11 +394,6 @@ async function onProcess() {
   } finally {
     btn.disabled = false;
   }
-}
-
-function csvEscape(v) {
-  const s = String(v ?? "");
-  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
 /* ============================== Plan a batch ============================== */
