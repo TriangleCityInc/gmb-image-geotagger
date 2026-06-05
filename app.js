@@ -6,7 +6,18 @@
  * ========================================================================= */
 
 // --- Passphrase gate (OBSCURITY ONLY — real auth = Cloudflare Access) ---
-const PASSPHRASE = "Ben1@uni";
+// SHA-256 of the passphrase. Plaintext is never in source — anyone can
+// still bypass the gate via DevTools (it's a client-side script), but
+// the passphrase string itself won't show up in repo search / scanners.
+const PASSPHRASE_HASH = "8a8c6aa1331d8f40be130e3fe8e3027c4a2cce47e08e6029c119a779cd3d3a50";
+
+async function sha256Hex(str) {
+  const buf = new TextEncoder().encode(str);
+  const digest = await crypto.subtle.digest("SHA-256", buf);
+  return Array.from(new Uint8Array(digest))
+    .map(b => b.toString(16).padStart(2, "0"))
+    .join("");
+}
 
 // --- Niche keyword starter pools ---
 const NICHE_KEYWORDS = {
@@ -49,8 +60,9 @@ const gateBtn  = document.getElementById("gate-btn");
 const gateIn   = document.getElementById("gate-input");
 const gateErr  = document.getElementById("gate-error");
 
-function tryUnlock() {
-  if (gateIn.value === PASSPHRASE) {
+async function tryUnlock() {
+  const hash = await sha256Hex(gateIn.value);
+  if (hash === PASSPHRASE_HASH) {
     gateEl.style.display = "none";
     initApp();
   } else {
