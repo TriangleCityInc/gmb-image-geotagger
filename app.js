@@ -154,43 +154,63 @@ function updateServiceCircle() {
 const OPENAI_KEY_STORAGE = "photoprep_openai_key";
 
 function wireBusinessPanel() {
-  // Persist OpenAI key in localStorage.
-  const keyEl = document.getElementById("openai-key");
+  const keyEl    = document.getElementById("openai-key");
+  const statusEl = document.getElementById("openai-key-status");
+  const nicheEl  = document.getElementById("biz-niche");
+  const kwEl     = document.getElementById("biz-keywords");
+
+  // Restore saved key on load.
   keyEl.value = localStorage.getItem(OPENAI_KEY_STORAGE) || "";
-  keyEl.addEventListener("change", () => {
+  refreshKeyStatus();
+
+  // On key blur: persist, refresh status, and — if a niche is already
+  // set — regenerate the pool with the new key so user doesn't have to
+  // re-blur the niche field.
+  keyEl.addEventListener("change", async () => {
     const v = keyEl.value.trim();
     if (v) localStorage.setItem(OPENAI_KEY_STORAGE, v);
     else   localStorage.removeItem(OPENAI_KEY_STORAGE);
+    refreshKeyStatus();
+
+    const niche = nicheEl.value.trim();
+    if (v && niche) await populateKeywords(niche, kwEl, v);
   });
 
-  // On niche blur, regenerate the keyword pool. Priority:
-  //   1. If OpenAI key is set, call OpenAI for a niche-specific pool.
-  //   2. Else if niche matches a curated entry, use that.
-  //   3. Else fall back to the template generator.
-  const nicheEl = document.getElementById("biz-niche");
-  const kwEl = document.getElementById("biz-keywords");
+  // On niche blur: regenerate the keyword pool from scratch.
   nicheEl.addEventListener("change", async () => {
     const raw = nicheEl.value.trim();
     if (!raw) { kwEl.value = ""; return; }
-
     const apiKey = (localStorage.getItem(OPENAI_KEY_STORAGE) || "").trim();
-    if (apiKey) {
-      const original = kwEl.value;
-      kwEl.value = "Generating keyword pool...";
-      kwEl.disabled = true;
-      try {
-        kwEl.value = await generateKeywordsViaOpenAI(raw, apiKey);
-      } catch (err) {
-        console.warn("OpenAI keyword generation failed, using fallback:", err);
-        kwEl.value = fallbackKeywords(raw);
-        alert("OpenAI request failed — using template fallback. Check console for details.");
-      } finally {
-        kwEl.disabled = false;
-      }
-    } else {
-      kwEl.value = fallbackKeywords(raw);
-    }
+    await populateKeywords(raw, kwEl, apiKey);
   });
+
+  function refreshKeyStatus() {
+    const stored = localStorage.getItem(OPENAI_KEY_STORAGE);
+    if (stored) {
+      statusEl.textContent = "✓ Key saved in this browser — persists across reloads. Clear field and tab out to remove.";
+      statusEl.style.color = "var(--accent)";
+    } else {
+      statusEl.textContent = "Not set — keyword pool will use templates.";
+      statusEl.style.color = "";
+    }
+  }
+}
+
+// Fill the keyword pool textarea using OpenAI when a key is present,
+// or the curated/template fallback otherwise.
+async function populateKeywords(niche, kwEl, apiKey) {
+  if (!apiKey) { kwEl.value = fallbackKeywords(niche); return; }
+  kwEl.value = "Generating keyword pool...";
+  kwEl.disabled = true;
+  try {
+    kwEl.value = await generateKeywordsViaOpenAI(niche, apiKey);
+  } catch (err) {
+    console.warn("OpenAI keyword generation failed, using fallback:", err);
+    kwEl.value = fallbackKeywords(niche);
+    alert("OpenAI request failed — using template fallback. Check the browser console for details.");
+  } finally {
+    kwEl.disabled = false;
+  }
 }
 
 function fallbackKeywords(niche) {
