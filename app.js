@@ -154,14 +154,35 @@ function updateServiceCircle() {
 function wireBusinessPanel() {
   const nicheEl = document.getElementById("biz-niche");
   const kwEl = document.getElementById("biz-keywords");
-  // When the niche field changes (blur or datalist selection), if the typed
-  // value matches a known niche, replace the keyword pool. Custom niches
-  // leave the pool alone so user edits aren't clobbered.
+  // On blur, replace the keyword pool. Known niches use the curated SEO
+  // list; anything else gets auto-generated from a template. User can
+  // still hand-edit the pool after, but changing the niche will overwrite.
   nicheEl.addEventListener("change", () => {
-    const key = nicheEl.value.trim().toLowerCase();
-    const pool = NICHE_KEYWORDS[key];
-    if (pool !== undefined) kwEl.value = pool;
+    const raw = nicheEl.value.trim();
+    if (!raw) { kwEl.value = ""; return; }
+    const curated = NICHE_KEYWORDS[raw.toLowerCase()];
+    kwEl.value = curated !== undefined ? curated : generateKeywordsFromNiche(raw);
   });
+}
+
+// Template-based keyword pool for any custom niche.
+function generateKeywordsFromNiche(niche) {
+  const n = niche.trim().toLowerCase();
+  if (!n) return "";
+  return [
+    n,
+    `${n} service`,
+    `${n} contractor`,
+    `${n} company`,
+    `${n} installation`,
+    `${n} repair`,
+    `residential ${n}`,
+    `commercial ${n}`,
+    `local ${n}`,
+    `professional ${n}`,
+    `${n} project`,
+    `${n} job`
+  ].join(", ");
 }
 
 /* ============================== Upload ============================== */
