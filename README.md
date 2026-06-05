@@ -37,13 +37,9 @@ git push
 1. Enter business name, pick a niche (auto-fills a keyword pool you can edit), set your city/region.
 2. Drop photos onto the upload zone (PNG / JPG / WEBP — HEIC not supported).
 3. Click the map to drop a pin for your general business area.
-4. Tune settings:
-   - **Jitter radius (m)** — keep tight around your real area; wide scatter can hurt city-name rankings.
-   - **Timestamp spread (days)** — capture dates randomized across last N days, daylight hours only.
-   - **JPEG quality** — 0.85 default.
-   - **Drip batches** — split output into N subfolders with timestamps clustered in different recent windows.
+4. Tune the **Jitter radius (m)** slider — keep tight around your real area; wide scatter can hurt city-name rankings. (Timestamp spread is fixed at 100 days; JPEG quality is fixed at 0.92.)
 5. **Preview** — see the proposed filenames and jittered coordinates plotted on the map.
-6. **Process & Download** — generates `photo-prep-export.zip` with all processed JPEGs and a `manifest.csv` (filename, batch, latitude, longitude, capture_datetime, low_res).
+6. **Process & Download** — generates `photo-prep-export.zip` with all processed JPEGs and a `manifest.csv` (filename, latitude, longitude, capture_datetime, low_res).
 
 ## Per-photo pipeline
 

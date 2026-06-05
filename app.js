@@ -44,6 +44,10 @@ const DESCRIPTORS = ["project", "job", "completed", "install", "finish", "work",
 // Default map center: Brantford, ON
 const DEFAULT_CENTER = [43.1394, -80.2644];
 
+// Hardcoded processing parameters (no longer in the UI)
+const SPREAD_DAYS  = 100;   // capture dates randomized across last N days
+const JPEG_QUALITY = 0.92;  // high enough that re-encode is visually lossless
+
 // --- State ---
 const state = {
   files: [],            // { file, url } for thumbnails
@@ -180,10 +184,6 @@ function wireSettings() {
   jit.addEventListener("input", () => {
     document.getElementById("jitter-val").textContent = jit.value;
   });
-  const q = document.getElementById("quality");
-  q.addEventListener("input", () => {
-    document.getElementById("quality-val").textContent = Number(q.value).toFixed(2);
-  });
 }
 
 /* ============================== Actions ============================== */
@@ -198,10 +198,7 @@ function getSettings() {
     niche:        document.getElementById("biz-niche").value,
     city:         document.getElementById("biz-city").value.trim() || "Brantford",
     keywords:     parseKeywords(document.getElementById("biz-keywords").value),
-    jitterRadius: Number(document.getElementById("jitter").value),
-    spreadDays:   Number(document.getElementById("spread-days").value),
-    quality:      Number(document.getElementById("quality").value),
-    batches:      Math.max(1, Number(document.getElementById("batches").value) || 1)
+    jitterRadius: Number(document.getElementById("jitter").value)
   };
 }
 
@@ -252,7 +249,7 @@ function onPreview() {
   for (const p of plan) {
     const row = document.createElement("div");
     row.className = "row" + (p.low_res ? " lowres" : "");
-    row.textContent = `${p.batch ? "batch-" + p.batch + "/" : ""}${p.filename}` +
+    row.textContent = `${p.filename}` +
       `  •  ${p.lat.toFixed(6)}, ${p.lng.toFixed(6)}` +
       `  •  ${p.capture_datetime}` +
       (p.low_res ? "  •  LOW RES" : "");
@@ -276,22 +273,18 @@ async function onProcess() {
       : planBatch(settings);
 
     const zip = new JSZip();
-    const manifestRows = [["filename","batch","latitude","longitude","capture_datetime","low_res"]];
+    const manifestRows = [["filename","latitude","longitude","capture_datetime","low_res"]];
 
     for (let i = 0; i < state.files.length; i++) {
       const item = state.files[i];
       const p = plan[i];
       prog.textContent = `Processing ${i + 1}/${state.files.length}`;
       try {
-        const { blob, lowRes } = await processOne(item.file, settings, p);
+        const { blob, lowRes } = await processOne(item.file, p);
         p.low_res = p.low_res || lowRes;
-        const path = settings.batches > 1
-          ? `batch-${p.batch}/${p.filename}`
-          : p.filename;
-        zip.file(path, blob);
+        zip.file(p.filename, blob);
         manifestRows.push([
           p.filename,
-          String(p.batch),
           p.lat.toFixed(6),
           p.lng.toFixed(6),
           p.capture_datetime,
@@ -328,16 +321,13 @@ function csvEscape(v) {
 
 /* ============================== Plan a batch ============================== */
 /**
- * Build per-photo plan: filename, jittered lat/lng, capture timestamp, batch index.
+ * Build per-photo plan: filename, jittered lat/lng, capture timestamp.
  * Filenames are uniquified across the batch.
  */
 function planBatch(settings) {
   const n = state.files.length;
   const used = new Set();
   const out = [];
-
-  // Pre-assign batches: distribute evenly across `settings.batches`
-  const batchAssign = assignBatches(n, settings.batches);
 
   for (let i = 0; i < n; i++) {
     let filename;
@@ -353,26 +343,16 @@ function planBatch(settings) {
     used.add(filename);
 
     const { lat, lng } = jitterCoord(state.pin.lat, state.pin.lng, settings.jitterRadius);
-    const ts = randomTimestamp(settings.spreadDays, batchAssign[i], settings.batches);
+    const ts = randomTimestamp();
 
     out.push({
       filename,
-      batch: batchAssign[i],
       lat, lng,
       capture_datetime: ts,
       low_res: false // set during processing if image is too small
     });
   }
   return out;
-}
-
-function assignBatches(n, batches) {
-  const arr = new Array(n);
-  for (let i = 0; i < n; i++) {
-    // Group 1 gets the first chunk (most recent), group 2 next, etc.
-    arr[i] = Math.min(batches, 1 + Math.floor((i * batches) / n));
-  }
-  return arr;
 }
 
 /* ============================== Filename generation ============================== */
@@ -454,26 +434,13 @@ function jitterCoord(lat, lng, radius) {
 
 /* ============================== Timestamp ============================== */
 /**
- * Random "YYYY:MM:DD HH:MM:SS" within the last N days, daylight 07:00–19:00.
- * For drip batches, each batch clusters in its own window:
- *   batch 1 = most recent ~N/batches days, batch 2 = the prior window, etc.
+ * Random "YYYY:MM:DD HH:MM:SS" within the last SPREAD_DAYS, daylight 07:00–19:00.
  */
-function randomTimestamp(spreadDays, batchIdx, totalBatches) {
+function randomTimestamp() {
   const now = Date.now();
-  const dayMs = 24 * 3600 * 1000;
-  const totalSpan = spreadDays * dayMs;
+  const start = now - SPREAD_DAYS * 24 * 3600 * 1000;
 
-  let start, end;
-  if (totalBatches > 1) {
-    const slice = totalSpan / totalBatches;
-    end   = now - (batchIdx - 1) * slice;
-    start = end - slice;
-  } else {
-    end = now;
-    start = now - totalSpan;
-  }
-
-  const day = new Date(start + Math.random() * (end - start));
+  const day = new Date(start + Math.random() * (now - start));
   // force daylight hours
   day.setHours(7 + Math.floor(Math.random() * 12)); // 7..18
   day.setMinutes(Math.floor(Math.random() * 60));
@@ -509,7 +476,7 @@ function exifGpsTimeStamp(exifDt) {
  *  3. Build fresh EXIF: GPS (jittered), DateTimeOriginal/Digitized, Make/Model.
  *  4. piexif.insert -> Blob.
  */
-async function processOne(file, settings, plan) {
+async function processOne(file, plan) {
   // 1. decode
   const img = await loadImage(file);
   const minDim = Math.min(img.naturalWidth, img.naturalHeight);
@@ -533,9 +500,9 @@ async function processOne(file, settings, plan) {
   ctx.fillRect(0, 0, w, h);
   ctx.drawImage(img, 0, 0, w, h);
 
-  // 2. encode JPEG, down-quality if over 5MB
+  // 2. encode JPEG at constant quality; auto-drop if over 5MB
   const MAX_BYTES = 5 * 1024 * 1024;
-  let q = settings.quality;
+  let q = JPEG_QUALITY;
   let dataUrl = canvas.toDataURL("image/jpeg", q);
   let bytes = dataUrlByteSize(dataUrl);
   while (bytes > MAX_BYTES && q > 0.5) {

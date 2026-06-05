@@ -94,27 +94,11 @@
     <!-- Settings -->
     <section class="panel">
       <h2>Settings</h2>
-      <div class="grid-2">
-        <label>
-          Jitter radius: <span id="jitter-val">250</span> m
-          <input type="range" id="jitter" min="0" max="800" step="10" value="250" />
-          <span class="hint">Keep tight around your real area. Wide scatter can hurt city-name rankings.</span>
-        </label>
-        <label>
-          Timestamp spread (days)
-          <input type="number" id="spread-days" min="1" max="365" value="30" />
-          <span class="hint">Capture dates randomized across last N days, daylight hours (07:00–19:00).</span>
-        </label>
-        <label>
-          JPEG quality: <span id="quality-val">0.85</span>
-          <input type="range" id="quality" min="0.70" max="0.95" step="0.01" value="0.85" />
-        </label>
-        <label>
-          Drip batches
-          <input type="number" id="batches" min="1" max="20" value="1" />
-          <span class="hint">If &gt;1, output is split into subfolders and timestamp clusters per batch.</span>
-        </label>
-      </div>
+      <label class="single-setting">
+        Jitter radius: <span id="jitter-val">250</span> m
+        <input type="range" id="jitter" min="0" max="800" step="10" value="250" />
+        <span class="hint">Keep tight around your real area. Wide scatter can hurt city-name rankings.</span>
+      </label>
     </section>
 
     <!-- Actions -->
