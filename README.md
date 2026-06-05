@@ -16,24 +16,21 @@ python3 -m http.server 8000
 
 Then open `http://localhost:8000` and enter the passphrase.
 
-> The passphrase is set at the top of `app.js` as `PASSPHRASE`. This is obscurity only — for real protection put the subdomain behind Cloudflare Access (Zero Trust) or HTTP Basic auth at the web-server level.
+> The passphrase is set at the top of `app.js` as `PASSPHRASE`. **It is obscurity only** — the whole script ships to the browser, so anyone who loads the page can read it via DevTools. Treat the gate as a speed bump, not security. Use a value that is not reused on any other account.
 
-## Deployment — Hostinger (shared hosting)
+## Deployment — GitHub Pages
 
-**Target URL:** `https://geotagger.buildnetpro.com`
-**Target path:** `/home/u194886637/domains/buildnetpro.com/public_html/geotagger`
+Live at: `https://trianglecityinc.github.io/gmb-image-geotagger/`
 
-1. **Create the subdomain in hPanel**
-   - hPanel → Domains → Subdomains
-   - Subdomain: `geotagger`, Domain: `buildnetpro.com`
-   - Document root: `public_html/geotagger` (Hostinger creates the folder automatically)
-2. **Upload the files** into that folder. Use either:
-   - **File Manager** (hPanel → Files → File Manager → navigate to `public_html/geotagger`, upload everything except `.git/`), or
-   - **SFTP / FTP** (hPanel → Files → FTP Accounts gives you host/user/password; point your client to `public_html/geotagger`).
-   Files to upload: `index.html`, `app.js`, `styles.css` (the README and `.gitignore` are optional on the server).
-3. **DNS** — if buildnetpro.com uses Hostinger's nameservers, creating the subdomain in step 1 also creates the DNS record. If DNS is at Cloudflare, add a record there pointing `geotagger` → your Hostinger server (Hostinger shows the A-record IP under hPanel → Domain → DNS Zone Editor). Proxy through Cloudflare if you want their TLS + WAF.
-4. **HTTPS** — Hostinger auto-issues a Let's Encrypt cert for the subdomain once DNS resolves. If DNS is proxied through Cloudflare instead, Cloudflare handles TLS at the edge.
-5. **Optional real auth** — Cloudflare Zero Trust → Access → application for `geotagger.buildnetpro.com` → policy allowing only your email. Highly recommended; the in-page passphrase is just obscurity.
+Source: `main` branch, `/` root. Enabled via Repo Settings → Pages → *Deploy from a branch*. Every push to `main` triggers a rebuild (usually live within ~60 seconds).
+
+To deploy a change:
+
+```
+git add -A
+git commit -m "describe the change"
+git push
+```
 
 ## How it works
 
