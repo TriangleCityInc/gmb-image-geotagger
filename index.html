@@ -41,6 +41,11 @@
     <section class="panel">
       <h2>Business details</h2>
       <div class="grid-2">
+        <label class="span-2">
+          OpenAI API key (stored in your browser only)
+          <input type="password" id="openai-key" placeholder="sk-... — leave blank to use template fallback" autocomplete="off" />
+          <span class="hint">Used to auto-generate niche-specific keyword pools. Saved to your browser's localStorage — never committed to the repo or sent anywhere except OpenAI.</span>
+        </label>
         <label>
           Business name
           <input type="text" id="biz-name" placeholder="e.g. Brantford Concrete Co" />

@@ -9,7 +9,7 @@
 // SHA-256 of the passphrase. Plaintext is never in source — anyone can
 // still bypass the gate via DevTools (it's a client-side script), but
 // the passphrase string itself won't show up in repo search / scanners.
-const PASSPHRASE_HASH = "8a8c6aa1331d8f40be130e3fe8e3027c4a2cce47e08e6029c119a779cd3d3a50";
+const PASSPHRASE_HASH = "55153cf80658161ef4eb0e996a3e3908b61a5fdad1b190c65d6b7696beeacb93";
 
 async function sha256Hex(str) {
   const buf = new TextEncoder().encode(str);
@@ -151,38 +151,113 @@ function updateServiceCircle() {
 }
 
 /* ============================== Business panel ============================== */
+const OPENAI_KEY_STORAGE = "photoprep_openai_key";
+
 function wireBusinessPanel() {
+  // Persist OpenAI key in localStorage.
+  const keyEl = document.getElementById("openai-key");
+  keyEl.value = localStorage.getItem(OPENAI_KEY_STORAGE) || "";
+  keyEl.addEventListener("change", () => {
+    const v = keyEl.value.trim();
+    if (v) localStorage.setItem(OPENAI_KEY_STORAGE, v);
+    else   localStorage.removeItem(OPENAI_KEY_STORAGE);
+  });
+
+  // On niche blur, regenerate the keyword pool. Priority:
+  //   1. If OpenAI key is set, call OpenAI for a niche-specific pool.
+  //   2. Else if niche matches a curated entry, use that.
+  //   3. Else fall back to the template generator.
   const nicheEl = document.getElementById("biz-niche");
   const kwEl = document.getElementById("biz-keywords");
-  // On blur, replace the keyword pool. Known niches use the curated SEO
-  // list; anything else gets auto-generated from a template. User can
-  // still hand-edit the pool after, but changing the niche will overwrite.
-  nicheEl.addEventListener("change", () => {
+  nicheEl.addEventListener("change", async () => {
     const raw = nicheEl.value.trim();
     if (!raw) { kwEl.value = ""; return; }
-    const curated = NICHE_KEYWORDS[raw.toLowerCase()];
-    kwEl.value = curated !== undefined ? curated : generateKeywordsFromNiche(raw);
+
+    const apiKey = (localStorage.getItem(OPENAI_KEY_STORAGE) || "").trim();
+    if (apiKey) {
+      const original = kwEl.value;
+      kwEl.value = "Generating keyword pool...";
+      kwEl.disabled = true;
+      try {
+        kwEl.value = await generateKeywordsViaOpenAI(raw, apiKey);
+      } catch (err) {
+        console.warn("OpenAI keyword generation failed, using fallback:", err);
+        kwEl.value = fallbackKeywords(raw);
+        alert("OpenAI request failed — using template fallback. Check console for details.");
+      } finally {
+        kwEl.disabled = false;
+      }
+    } else {
+      kwEl.value = fallbackKeywords(raw);
+    }
   });
 }
 
-// Template-based keyword pool for any custom niche.
+function fallbackKeywords(niche) {
+  const curated = NICHE_KEYWORDS[niche.trim().toLowerCase()];
+  if (curated !== undefined) return curated;
+  return generateKeywordsFromNiche(niche);
+}
+
+// Template-based keyword pool when no API key is set and the niche isn't curated.
+// Crude but at least produces a starting point.
 function generateKeywordsFromNiche(niche) {
   const n = niche.trim().toLowerCase();
   if (!n) return "";
   return [
     n,
     `${n} service`,
-    `${n} contractor`,
-    `${n} company`,
-    `${n} installation`,
-    `${n} repair`,
-    `residential ${n}`,
-    `commercial ${n}`,
     `local ${n}`,
     `professional ${n}`,
     `${n} project`,
     `${n} job`
   ].join(", ");
+}
+
+// Calls OpenAI chat completions to produce a niche-specific, SEO-friendly
+// keyword pool. Output sanitized to a flat comma-separated list.
+async function generateKeywordsViaOpenAI(niche, apiKey) {
+  const systemPrompt =
+    "You generate SEO keyword pools for local service business image filenames. " +
+    "Given a niche, return 12 short, comma-separated, lowercase keyword phrases " +
+    "(1-3 words each) that would naturally appear in image filenames a local " +
+    "customer might search for. Include the niche's specific services, common " +
+    "tools, materials, and natural variations a real business would actually use. " +
+    "No numbers, no quotes, no markdown, no explanations. Just the comma-separated list.";
+
+  const res = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${apiKey}`
+    },
+    body: JSON.stringify({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: `Niche: ${niche}` }
+      ],
+      temperature: 0.5,
+      max_tokens: 250
+    })
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`OpenAI HTTP ${res.status}: ${body}`);
+  }
+  const data = await res.json();
+  const content = (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || "";
+
+  // Sanitize: drop numbering / quotes / newlines and re-flatten as CSV.
+  return content
+    .replace(/^\s*\d+\s*[).\-]\s*/gm, "")
+    .replace(/["“”'’]/g, "")
+    .replace(/\r?\n+/g, ", ")
+    .split(",")
+    .map(s => s.trim())
+    .filter(Boolean)
+    .join(", ");
 }
 
 /* ============================== Upload ============================== */
