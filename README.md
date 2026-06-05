@@ -32,6 +32,19 @@ git commit -m "describe the change"
 git push
 ```
 
+## Deployment — OpenAI keyword proxy (Hostinger, one time)
+
+`app.js` calls a PHP file on Hostinger to generate niche-specific keyword pools. The OpenAI key lives inside that PHP file (server-side only) so the browser never sees it. One-time setup:
+
+1. **In this repo:** open [server/keywords.example.php](server/keywords.example.php). Copy its full contents.
+2. **In Hostinger hPanel:** Files → File Manager → navigate to `public_html/` of `buildnetpro.com`.
+3. **Create a new file** named `photoprep-keywords.php` and paste the contents in.
+4. **Find the line** `const OPENAI_KEY = 'PASTE_YOUR_OPENAI_KEY_HERE';` and replace the placeholder with your real OpenAI key. Save.
+5. **Verify:** open `https://buildnetpro.com/photoprep-keywords.php` in a browser. You should see `{"status":"ok","message":"..."}`. If you see PHP source instead, PHP isn't being executed — check hosting settings.
+6. **Done.** The static site is already wired to that URL (see `KEYWORD_PROXY_URL` in [app.js](app.js)). If you ever move the file, update that one constant.
+
+The real `photoprep-keywords.php` file (with the key) must **never** be committed to git. The `.example.php` version in this repo only has a placeholder.
+
 ## How it works
 
 1. Enter business name, pick a niche (auto-fills a keyword pool you can edit), set your city/region.

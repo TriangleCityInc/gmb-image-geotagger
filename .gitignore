@@ -13,3 +13,7 @@ desktop.ini
 photo-prep-export.zip
 /tmp/
 *.log
+
+# Filled-in proxy with real OpenAI key — only the .example.php belongs in git
+server/photoprep-keywords.php
+server/keywords.php

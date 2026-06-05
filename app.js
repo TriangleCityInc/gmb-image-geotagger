@@ -151,63 +151,29 @@ function updateServiceCircle() {
 }
 
 /* ============================== Business panel ============================== */
-const OPENAI_KEY_STORAGE = "photoprep_openai_key";
+// Server-side proxy that holds the OpenAI key. The browser never sees
+// the key — it just POSTs { niche } to this URL and gets keywords back.
+// Edit this one line if the PHP file lives at a different URL.
+const KEYWORD_PROXY_URL = "https://buildnetpro.com/photoprep-keywords.php";
 
 function wireBusinessPanel() {
-  const keyEl    = document.getElementById("openai-key");
-  const statusEl = document.getElementById("openai-key-status");
-  const nicheEl  = document.getElementById("biz-niche");
-  const kwEl     = document.getElementById("biz-keywords");
-
-  // Restore saved key on load.
-  keyEl.value = localStorage.getItem(OPENAI_KEY_STORAGE) || "";
-  refreshKeyStatus();
-
-  // On key blur: persist, refresh status, and — if a niche is already
-  // set — regenerate the pool with the new key so user doesn't have to
-  // re-blur the niche field.
-  keyEl.addEventListener("change", async () => {
-    const v = keyEl.value.trim();
-    if (v) localStorage.setItem(OPENAI_KEY_STORAGE, v);
-    else   localStorage.removeItem(OPENAI_KEY_STORAGE);
-    refreshKeyStatus();
-
-    const niche = nicheEl.value.trim();
-    if (v && niche) await populateKeywords(niche, kwEl, v);
-  });
-
-  // On niche blur: regenerate the keyword pool from scratch.
+  const nicheEl = document.getElementById("biz-niche");
+  const kwEl    = document.getElementById("biz-keywords");
   nicheEl.addEventListener("change", async () => {
     const raw = nicheEl.value.trim();
     if (!raw) { kwEl.value = ""; return; }
-    const apiKey = (localStorage.getItem(OPENAI_KEY_STORAGE) || "").trim();
-    await populateKeywords(raw, kwEl, apiKey);
+    await populateKeywords(raw, kwEl);
   });
-
-  function refreshKeyStatus() {
-    const stored = localStorage.getItem(OPENAI_KEY_STORAGE);
-    if (stored) {
-      statusEl.textContent = "✓ Key saved in this browser — persists across reloads. Clear field and tab out to remove.";
-      statusEl.style.color = "var(--accent)";
-    } else {
-      statusEl.textContent = "Not set — keyword pool will use templates.";
-      statusEl.style.color = "";
-    }
-  }
 }
 
-// Fill the keyword pool textarea using OpenAI when a key is present,
-// or the curated/template fallback otherwise.
-async function populateKeywords(niche, kwEl, apiKey) {
-  if (!apiKey) { kwEl.value = fallbackKeywords(niche); return; }
+async function populateKeywords(niche, kwEl) {
   kwEl.value = "Generating keyword pool...";
   kwEl.disabled = true;
   try {
-    kwEl.value = await generateKeywordsViaOpenAI(niche, apiKey);
+    kwEl.value = await generateKeywordsViaProxy(niche);
   } catch (err) {
-    console.warn("OpenAI keyword generation failed, using fallback:", err);
+    console.warn("Proxy keyword generation failed, using fallback:", err);
     kwEl.value = fallbackKeywords(niche);
-    alert("OpenAI request failed — using template fallback. Check the browser console for details.");
   } finally {
     kwEl.disabled = false;
   }
@@ -234,50 +200,23 @@ function generateKeywordsFromNiche(niche) {
   ].join(", ");
 }
 
-// Calls OpenAI chat completions to produce a niche-specific, SEO-friendly
-// keyword pool. Output sanitized to a flat comma-separated list.
-async function generateKeywordsViaOpenAI(niche, apiKey) {
-  const systemPrompt =
-    "You generate SEO keyword pools for local service business image filenames. " +
-    "Given a niche, return 12 short, comma-separated, lowercase keyword phrases " +
-    "(1-3 words each) that would naturally appear in image filenames a local " +
-    "customer might search for. Include the niche's specific services, common " +
-    "tools, materials, and natural variations a real business would actually use. " +
-    "No numbers, no quotes, no markdown, no explanations. Just the comma-separated list.";
-
-  const res = await fetch("https://api.openai.com/v1/chat/completions", {
+// Asks the server-side PHP proxy for a keyword pool. The proxy holds the
+// OpenAI key and does the sanitization, so we just take the string back.
+async function generateKeywordsViaProxy(niche) {
+  const res = await fetch(KEYWORD_PROXY_URL, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${apiKey}`
-    },
-    body: JSON.stringify({
-      model: "gpt-4o-mini",
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: `Niche: ${niche}` }
-      ],
-      temperature: 0.5,
-      max_tokens: 250
-    })
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ niche })
   });
-
   if (!res.ok) {
     const body = await res.text();
-    throw new Error(`OpenAI HTTP ${res.status}: ${body}`);
+    throw new Error(`Proxy HTTP ${res.status}: ${body}`);
   }
   const data = await res.json();
-  const content = (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || "";
-
-  // Sanitize: drop numbering / quotes / newlines and re-flatten as CSV.
-  return content
-    .replace(/^\s*\d+\s*[).\-]\s*/gm, "")
-    .replace(/["“”'’]/g, "")
-    .replace(/\r?\n+/g, ", ")
-    .split(",")
-    .map(s => s.trim())
-    .filter(Boolean)
-    .join(", ");
+  if (typeof data.keywords !== "string" || !data.keywords) {
+    throw new Error("Proxy response missing 'keywords' field");
+  }
+  return data.keywords;
 }
 
 /* ============================== Upload ============================== */
