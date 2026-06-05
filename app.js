@@ -484,11 +484,20 @@ function generateFilename(settings) {
   // Business-name inclusion roughly 1 in 4
   let base;
   if (bizSlug && Math.random() < 0.25) {
-    const bizVariants = [
-      () => `${bizSlug}-${kwSlug}`,
-      () => `${bizSlug}-${kwSlug}-${citySlug}`,
-      () => `${kwSlug}-${bizSlug}`
-    ];
+    // If the business slug already contains the city as a token, skip the
+    // variant that appends it again ("brantford-concrete-co-...-brantford"
+    // reads unnaturally).
+    const bizHasCity = bizSlug.split("-").includes(citySlug);
+    const bizVariants = bizHasCity
+      ? [
+          () => `${bizSlug}-${kwSlug}`,
+          () => `${kwSlug}-${bizSlug}`
+        ]
+      : [
+          () => `${bizSlug}-${kwSlug}`,
+          () => `${bizSlug}-${kwSlug}-${citySlug}`,
+          () => `${kwSlug}-${bizSlug}`
+        ];
     base = pick(bizVariants)();
   } else {
     // Sometimes omit the descriptor
