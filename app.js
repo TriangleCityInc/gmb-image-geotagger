@@ -47,6 +47,7 @@ const DEFAULT_CENTER = [43.1394, -80.2644];
 // Hardcoded processing parameters (no longer in the UI)
 const SPREAD_DAYS  = 100;   // capture dates randomized across last N days
 const JPEG_QUALITY = 0.92;  // high enough that re-encode is visually lossless
+const BASE_RADIUS_METERS = 1000; // tight cluster around pin for "base" shots
 
 // --- State ---
 const state = {
@@ -54,8 +55,9 @@ const state = {
   pin: null,            // { lat, lng }
   map: null,
   marker: null,
+  serviceCircle: null,  // L.Circle showing the service-area radius
   previewLayer: null,   // L.LayerGroup for jittered dots
-  lastPreview: null     // [{filename, lat, lng, capture_datetime, low_res, batch}]
+  lastPreview: null     // [{filename, lat, lng, capture_datetime, low_res}]
 };
 
 /* ============================== Gate ============================== */
@@ -111,6 +113,41 @@ function setPin(lat, lng) {
   }
   document.getElementById("latlng").textContent =
     `Pin: ${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+  updateServiceCircle();
+}
+
+function getRadiusMeters() {
+  const km = Number(document.getElementById("radius-km").value) || 15;
+  return km * 1000;
+}
+
+/**
+ * Ensure exactly one service-area circle exists, centered on the pin,
+ * with radius matching the current slider. Auto-fits the view only if
+ * the circle's bounds wouldn't fit inside the current viewport.
+ */
+function updateServiceCircle() {
+  if (!state.pin) return;
+  const r = getRadiusMeters();
+  if (state.serviceCircle) {
+    state.serviceCircle.setLatLng([state.pin.lat, state.pin.lng]);
+    state.serviceCircle.setRadius(r);
+  } else {
+    state.serviceCircle = L.circle([state.pin.lat, state.pin.lng], {
+      radius: r,
+      color: "#2b6cb0",
+      weight: 1,
+      opacity: 0.6,
+      fillColor: "#2b6cb0",
+      fillOpacity: 0.1,
+      interactive: false
+    }).addTo(state.map);
+  }
+  // Only adjust zoom if the circle isn't fully visible in the current view.
+  const cb = state.serviceCircle.getBounds();
+  if (!state.map.getBounds().contains(cb)) {
+    state.map.fitBounds(cb, { padding: [20, 20] });
+  }
 }
 
 /* ============================== Business panel ============================== */
@@ -180,9 +217,10 @@ function renderThumbs() {
 
 /* ============================== Settings ============================== */
 function wireSettings() {
-  const jit = document.getElementById("jitter");
-  jit.addEventListener("input", () => {
-    document.getElementById("jitter-val").textContent = jit.value;
+  const r = document.getElementById("radius-km");
+  r.addEventListener("input", () => {
+    document.getElementById("radius-val").textContent = r.value;
+    updateServiceCircle();
   });
 }
 
@@ -193,12 +231,15 @@ function wireActions() {
 }
 
 function getSettings() {
+  const clusterRaw = Number(document.getElementById("cluster-pct").value);
+  const clusterPct = Math.min(100, Math.max(0, isNaN(clusterRaw) ? 30 : clusterRaw));
   return {
-    bizName:      document.getElementById("biz-name").value.trim(),
-    niche:        document.getElementById("biz-niche").value,
-    city:         document.getElementById("biz-city").value.trim() || "Brantford",
-    keywords:     parseKeywords(document.getElementById("biz-keywords").value),
-    jitterRadius: Number(document.getElementById("jitter").value)
+    bizName:         document.getElementById("biz-name").value.trim(),
+    niche:           document.getElementById("biz-niche").value,
+    city:            document.getElementById("biz-city").value.trim() || "Brantford",
+    keywords:        parseKeywords(document.getElementById("biz-keywords").value),
+    serviceRadiusKm: Number(document.getElementById("radius-km").value) || 15,
+    clusterBasePct:  clusterPct
   };
 }
 
@@ -342,7 +383,10 @@ function planBatch(settings) {
     }
     used.add(filename);
 
-    const { lat, lng } = jitterCoord(state.pin.lat, state.pin.lng, settings.jitterRadius);
+    // Per-photo bucket: cluster at base (tight) vs. service-area (wide).
+    const isBase = Math.random() * 100 < settings.clusterBasePct;
+    const radiusMeters = isBase ? BASE_RADIUS_METERS : settings.serviceRadiusKm * 1000;
+    const { lat, lng } = jitterCoord(state.pin.lat, state.pin.lng, radiusMeters);
     const ts = randomTimestamp();
 
     out.push({
