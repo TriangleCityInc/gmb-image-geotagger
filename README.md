@@ -16,19 +16,24 @@ python3 -m http.server 8000
 
 Then open `http://localhost:8000` and enter the passphrase.
 
-> The passphrase is set at the top of `app.js` as `PASSPHRASE = "CHANGE_ME"`. This is obscurity only — change it before deploying, and use real auth (Cloudflare Access) on the public subdomain.
+> The passphrase is set at the top of `app.js` as `PASSPHRASE`. This is obscurity only — for real protection put the subdomain behind Cloudflare Access (Zero Trust) or HTTP Basic auth at the web-server level.
 
-## Deployment (GitHub Pages + custom subdomain)
+## Deployment — Hostinger (shared hosting)
 
-1. Create a GitHub repo and push these files to `main`.
-2. Repo Settings → Pages → **Deploy from a branch** → `main` → `/ (root)`.
-3. The `CNAME` file in this repo contains `photos.buildnetpro.com` — GitHub Pages picks it up automatically.
-4. In Cloudflare DNS, add a CNAME record:
-   - **Name:** `photos`
-   - **Target:** `<myusername>.github.io`
-   - **Proxy:** on (orange cloud)
-   Wait for GitHub Pages to provision the HTTPS certificate (a few minutes once DNS resolves).
-5. **Optional real auth:** Cloudflare Zero Trust → Access → create an application for `photos.buildnetpro.com` and a policy that allows only your email.
+**Target URL:** `https://geotagger.buildnetpro.com`
+**Target path:** `/home/u194886637/domains/buildnetpro.com/public_html/geotagger`
+
+1. **Create the subdomain in hPanel**
+   - hPanel → Domains → Subdomains
+   - Subdomain: `geotagger`, Domain: `buildnetpro.com`
+   - Document root: `public_html/geotagger` (Hostinger creates the folder automatically)
+2. **Upload the files** into that folder. Use either:
+   - **File Manager** (hPanel → Files → File Manager → navigate to `public_html/geotagger`, upload everything except `.git/`), or
+   - **SFTP / FTP** (hPanel → Files → FTP Accounts gives you host/user/password; point your client to `public_html/geotagger`).
+   Files to upload: `index.html`, `app.js`, `styles.css` (the README and `.gitignore` are optional on the server).
+3. **DNS** — if buildnetpro.com uses Hostinger's nameservers, creating the subdomain in step 1 also creates the DNS record. If DNS is at Cloudflare, add a record there pointing `geotagger` → your Hostinger server (Hostinger shows the A-record IP under hPanel → Domain → DNS Zone Editor). Proxy through Cloudflare if you want their TLS + WAF.
+4. **HTTPS** — Hostinger auto-issues a Let's Encrypt cert for the subdomain once DNS resolves. If DNS is proxied through Cloudflare instead, Cloudflare handles TLS at the edge.
+5. **Optional real auth** — Cloudflare Zero Trust → Access → application for `geotagger.buildnetpro.com` → policy allowing only your email. Highly recommended; the in-page passphrase is just obscurity.
 
 ## How it works
 

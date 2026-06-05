@@ -6,7 +6,7 @@
  * ========================================================================= */
 
 // --- Passphrase gate (OBSCURITY ONLY — real auth = Cloudflare Access) ---
-const PASSPHRASE = "CHANGE_ME";
+const PASSPHRASE = "Ben1@uni";
 
 // --- Niche keyword starter pools ---
 const NICHE_KEYWORDS = {
