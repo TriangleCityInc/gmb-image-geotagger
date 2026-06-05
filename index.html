@@ -47,17 +47,17 @@
         </label>
         <label>
           Niche
-          <select id="biz-niche">
-            <option value="">-- choose --</option>
-            <option value="Concrete">Concrete</option>
-            <option value="Car Detailing">Car Detailing</option>
-            <option value="Towing">Towing</option>
-            <option value="Lawn Care">Lawn Care</option>
-            <option value="Pressure Washing">Pressure Washing</option>
-            <option value="Window Cleaning">Window Cleaning</option>
-            <option value="Gutter Cleaning">Gutter Cleaning</option>
-            <option value="Other">Other</option>
-          </select>
+          <input type="text" id="biz-niche" list="niche-suggestions" placeholder="e.g. Concrete, Roofing, HVAC..." autocomplete="off" />
+          <datalist id="niche-suggestions">
+            <option value="Concrete"></option>
+            <option value="Car Detailing"></option>
+            <option value="Towing"></option>
+            <option value="Lawn Care"></option>
+            <option value="Pressure Washing"></option>
+            <option value="Window Cleaning"></option>
+            <option value="Gutter Cleaning"></option>
+          </datalist>
+          <span class="hint">Type anything. If it matches a known niche, the keyword pool below auto-fills — otherwise add your own keywords.</span>
         </label>
         <label>
           City / region

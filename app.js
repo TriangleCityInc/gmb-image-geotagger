@@ -20,15 +20,15 @@ async function sha256Hex(str) {
 }
 
 // --- Niche keyword starter pools ---
+// Keyed by lowercased niche name so typed input matches case-insensitively.
 const NICHE_KEYWORDS = {
-  "Concrete":         "concrete driveway, stamped concrete, concrete patio, foundation, concrete walkway, driveway installation, concrete resurfacing, concrete repair, slab, paving, concrete contractor",
-  "Car Detailing":    "car detailing, interior detailing, ceramic coating, paint correction, exterior detail, auto detailing, mobile detailing, car wash, vehicle detailing",
-  "Towing":           "towing, tow truck, roadside assistance, flatbed tow, vehicle recovery, emergency towing, jump start, winch out",
-  "Lawn Care":        "lawn mowing, lawn care, lawn maintenance, grass cutting, yard cleanup, fertilizing, edging, lawn service",
-  "Pressure Washing": "pressure washing, power washing, driveway cleaning, house washing, soft wash, deck cleaning, exterior cleaning",
-  "Window Cleaning":  "window cleaning, window washing, residential windows, commercial windows, streak-free, glass cleaning",
-  "Gutter Cleaning":  "gutter cleaning, gutter clearing, downspout cleaning, gutter guards, debris removal, gutter maintenance",
-  "Other":            ""
+  "concrete":         "concrete driveway, stamped concrete, concrete patio, foundation, concrete walkway, driveway installation, concrete resurfacing, concrete repair, slab, paving, concrete contractor",
+  "car detailing":    "car detailing, interior detailing, ceramic coating, paint correction, exterior detail, auto detailing, mobile detailing, car wash, vehicle detailing",
+  "towing":           "towing, tow truck, roadside assistance, flatbed tow, vehicle recovery, emergency towing, jump start, winch out",
+  "lawn care":        "lawn mowing, lawn care, lawn maintenance, grass cutting, yard cleanup, fertilizing, edging, lawn service",
+  "pressure washing": "pressure washing, power washing, driveway cleaning, house washing, soft wash, deck cleaning, exterior cleaning",
+  "window cleaning":  "window cleaning, window washing, residential windows, commercial windows, streak-free, glass cleaning",
+  "gutter cleaning":  "gutter cleaning, gutter clearing, downspout cleaning, gutter guards, debris removal, gutter maintenance"
 };
 
 // Plausible phone camera Make/Model rotation
@@ -113,9 +113,12 @@ function setPin(lat, lng) {
 function wireBusinessPanel() {
   const nicheEl = document.getElementById("biz-niche");
   const kwEl = document.getElementById("biz-keywords");
+  // When the niche field changes (blur or datalist selection), if the typed
+  // value matches a known niche, replace the keyword pool. Custom niches
+  // leave the pool alone so user edits aren't clobbered.
   nicheEl.addEventListener("change", () => {
-    // Auto-fill keyword pool. User can edit freely.
-    const pool = NICHE_KEYWORDS[nicheEl.value];
+    const key = nicheEl.value.trim().toLowerCase();
+    const pool = NICHE_KEYWORDS[key];
     if (pool !== undefined) kwEl.value = pool;
   });
 }
