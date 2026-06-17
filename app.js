@@ -31,13 +31,68 @@ const NICHE_KEYWORDS = {
   "gutter cleaning":  "gutter cleaning, gutter clearing, downspout cleaning, gutter guards, debris removal, gutter maintenance"
 };
 
-// Plausible phone camera Make/Model rotation
+// Plausible phone camera profiles. Each entry carries the camera's
+// real-ish fixed optics + Software version pool so we can fill out the
+// full EXIF block (FNumber, FocalLength, LensModel, Software, etc.) the
+// way a real smartphone would. ExposureTime + ISO are picked per shot.
 const PHONE_MODELS = [
-  { make: "Apple",   model: "iPhone 14" },
-  { make: "Apple",   model: "iPhone 15" },
-  { make: "samsung", model: "SM-S918B"  },
-  { make: "Google",  model: "Pixel 8"   }
+  {
+    make: "Apple",
+    model: "iPhone 14",
+    softwares: ["16.7.4", "17.1.2", "17.3.1", "17.4.1", "17.5.1"],
+    fNumber: [156, 100],          // f/1.56 main wide
+    focalLength: [571, 100],      // 5.71 mm physical
+    focalLength35: 26,            // 35mm equivalent
+    lensModel: "iPhone 14 back camera 5.71mm f/1.5"
+  },
+  {
+    make: "Apple",
+    model: "iPhone 15",
+    softwares: ["17.0.3", "17.2.1", "17.3.1", "17.4.1", "17.5.1", "18.0.1"],
+    fNumber: [160, 100],          // f/1.6
+    focalLength: [567, 100],      // 5.67 mm
+    focalLength35: 26,
+    lensModel: "iPhone 15 back camera 5.67mm f/1.6"
+  },
+  {
+    make: "samsung",
+    model: "SM-S918B",            // Galaxy S23 Ultra
+    softwares: ["S918BXXS3CWHA", "S918BXXU4CWJ7", "S918BXXU5DXAD"],
+    fNumber: [170, 100],          // f/1.7
+    focalLength: [646, 100],      // 6.46 mm
+    focalLength35: 23,
+    lensModel: "Galaxy S23 Ultra Rear Camera"
+  },
+  {
+    make: "Google",
+    model: "Pixel 8",
+    softwares: ["UQ1A.240105.004", "UQ1A.240205.004", "AP1A.240505.005", "AP2A.240605.024"],
+    fNumber: [168, 100],          // f/1.68
+    focalLength: [682, 100],      // 6.82 mm
+    focalLength35: 25,
+    lensModel: "Pixel 8 back camera 6.82mm f/1.68"
+  }
 ];
+
+// Outdoor-daylight shutter speeds, as [num, denom] rationals.
+function pickExposureTime() {
+  const denoms = [100, 125, 160, 200, 250, 320, 400, 500, 640, 800, 1000, 1250, 1600, 2000];
+  return [1, pick(denoms)];
+}
+
+// Outdoor-daylight ISO. Low values dominate; phone auto-ISO sticks low when sunny.
+function pickISO() {
+  const isos = [25, 32, 40, 50, 64, 80, 100, 125, 160, 200, 250, 320, 400];
+  return pick(isos);
+}
+
+// Parse "YYYY:MM:DD HH:MM:SS" -> JS Date. Used to set the ZIP entry's
+// modified-time so Windows shows realistic dates after extraction.
+function parseExifDate(exifDt) {
+  const m = /^(\d{4}):(\d{2}):(\d{2}) (\d{2}):(\d{2}):(\d{2})$/.exec(exifDt);
+  if (!m) return new Date();
+  return new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]);
+}
 
 const DESCRIPTORS = ["project", "job", "completed", "install", "finish", "work", "new", "local"];
 
@@ -377,7 +432,9 @@ async function onProcess() {
       try {
         const { blob, lowRes } = await processOne(item.file, p);
         p.low_res = p.low_res || lowRes;
-        zip.file(p.filename, blob);
+        // Set the ZIP entry's modified-time to the photo's "capture" time
+        // so Windows shows that date in the Date Modified column after unzip.
+        zip.file(p.filename, blob, { date: parseExifDate(p.capture_datetime) });
       } catch (err) {
         console.warn(`Skipping ${item.file.name}:`, err);
       }
@@ -600,18 +657,42 @@ async function processOne(file, plan) {
     bytes = dataUrlByteSize(dataUrl);
   }
 
-  // 3. fresh EXIF
-  const phone = pick(PHONE_MODELS);
-  const dt = plan.capture_datetime;
+  // 3. fresh EXIF — full smartphone profile, not just date+GPS
+  const phone    = pick(PHONE_MODELS);
+  const software = pick(phone.softwares);
+  const dt       = plan.capture_datetime;
 
   const zerothIfd = {};
-  zerothIfd[piexif.ImageIFD.Make]     = phone.make;
-  zerothIfd[piexif.ImageIFD.Model]    = phone.model;
-  zerothIfd[piexif.ImageIFD.DateTime] = dt;
+  zerothIfd[piexif.ImageIFD.Make]           = phone.make;
+  zerothIfd[piexif.ImageIFD.Model]          = phone.model;
+  zerothIfd[piexif.ImageIFD.Software]       = software;
+  zerothIfd[piexif.ImageIFD.DateTime]       = dt;
+  zerothIfd[piexif.ImageIFD.Orientation]    = 1;        // normal (top-left)
+  zerothIfd[piexif.ImageIFD.XResolution]    = [72, 1];
+  zerothIfd[piexif.ImageIFD.YResolution]    = [72, 1];
+  zerothIfd[piexif.ImageIFD.ResolutionUnit] = 2;        // inches
+  zerothIfd[piexif.ImageIFD.YCbCrPositioning] = 1;
 
   const exifIfd = {};
-  exifIfd[piexif.ExifIFD.DateTimeOriginal]  = dt;
-  exifIfd[piexif.ExifIFD.DateTimeDigitized] = dt;
+  exifIfd[piexif.ExifIFD.DateTimeOriginal]       = dt;
+  exifIfd[piexif.ExifIFD.DateTimeDigitized]      = dt;
+  // Per-shot camera settings — plausible outdoor-daylight values.
+  exifIfd[piexif.ExifIFD.ExposureTime]           = pickExposureTime();
+  exifIfd[piexif.ExifIFD.FNumber]                = phone.fNumber;
+  exifIfd[piexif.ExifIFD.ExposureProgram]        = 2;   // Normal program
+  exifIfd[piexif.ExifIFD.ISOSpeedRatings]        = pickISO();
+  exifIfd[piexif.ExifIFD.ExifVersion]            = "0232";
+  exifIfd[piexif.ExifIFD.ComponentsConfiguration] = "\x01\x02\x03\x00";
+  exifIfd[piexif.ExifIFD.FocalLength]            = phone.focalLength;
+  exifIfd[piexif.ExifIFD.FocalLengthIn35mmFilm]  = phone.focalLength35;
+  exifIfd[piexif.ExifIFD.MeteringMode]           = 5;   // Pattern
+  exifIfd[piexif.ExifIFD.Flash]                  = 16;  // Off, did not fire
+  exifIfd[piexif.ExifIFD.WhiteBalance]           = 0;   // Auto
+  exifIfd[piexif.ExifIFD.ColorSpace]             = 1;   // sRGB
+  exifIfd[piexif.ExifIFD.PixelXDimension]        = w;
+  exifIfd[piexif.ExifIFD.PixelYDimension]        = h;
+  exifIfd[piexif.ExifIFD.LensModel]              = phone.lensModel;
+  exifIfd[piexif.ExifIFD.SceneCaptureType]       = 0;   // Standard
 
   const lat = plan.lat;
   const lng = plan.lng;
